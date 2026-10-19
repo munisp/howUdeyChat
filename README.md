@@ -40,6 +40,7 @@ apps/pwa/               the app — service worker, offline shell, i18n, rendere
 apps/android/           Capacitor shell (build notes)
 apps/ios/               Capacitor shell (build notes)
 relay/                  Go store-and-forward relay (clinic hotspot / LGA edge)
+admin/                  Go provisioning & management service (registration desk)
 core/huc-core/          Rust crypto/util core — SHA-256, HMAC, ct-compare (pure std)
 demo/                   offline-chat: e2e against a simulated Nigerian network
 tests/                  node unit tests (sync, outbox, media, artifacts, i18n)
@@ -49,8 +50,9 @@ docs/architecture/      ADRs
 ## Verify it yourself
 
 ```sh
-node --test tests/                 # 12 unit tests
+node --test tests/                 # unit tests
 (cd relay && go test ./...)        # relay: spool, replay, tamper-quarantine
+(cd admin && go test ./...)        # admin: provision, fail-closed activation, revoke
 (cd core/huc-core && cargo test)   # crypto vectors
 sh demo/offline-chat.sh            # e2e: up → down → recovery, rich content
 ```
@@ -89,6 +91,28 @@ sh demo/phase3.sh   # e2e: group calls, editing, device sync
   Android, graceful without Play services.
 - **Message editing** (`m.replace`): safety-critical corrections with audit
   trail and plain-text fallback.
+
+## Phase 4 (shipped): provisioning & management
+
+Patient onboarding ([ADR-0010](docs/architecture/adr-0010-provisioning-admin.md))
+is clinic-assisted, end to end, in `admin/` (std-only Go):
+
+1. **Registration desk** — operator calls `POST /v1/provision` with the patient
+   ID + phone; the service verifies both against the OpenHealth registry
+   (fail-closed: unknown patient or phone mismatch → 404), creates the Matrix
+   account via Synapse shared-secret registration, and prints a card with
+   username + one-time setup code. Only the code's SHA-256 hash is stored.
+2. **Patient activates at home** — `POST /v1/activate` with username + patient
+   ID + phone + setup code + chosen PIN. Every failure is the same 404 (no
+   oracle); success sets the PIN with `logout_devices: true` and burns the
+   code (single-use).
+3. **Management** — `GET /v1/accounts`, `POST /v1/revoke` (lost phone →
+   homeserver deactivation). Homeserver down? Creates/revokes spool to disk
+   and replay until they land. Every action hits an append-only `audit.log`.
+
+```sh
+sh demo/admin.sh   # e2e: provision → activate → fail-closed paths → revoke
+```
 
 ## Doctrine
 
