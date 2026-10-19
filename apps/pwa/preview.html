@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b3d2e">
+<title>howUdeyChat — UI preview</title>
+<link rel="stylesheet" href="css/app.css">
+<style>
+  /* preview-only chrome */
+  body { background: #555; }
+  #frame { width: 390px; height: 100vh; margin: 0 auto; background: var(--bg);
+           display: flex; flex-direction: column; overflow: hidden; }
+  #frame #app { max-width: none; }
+</style>
+</head>
+<body>
+<div id="frame"><div id="app">
+  <header id="bar">
+    <h1 id="bar-title">howUdeyChat</h1>
+    <span id="status" class="pill">—</span>
+    <select id="lang" aria-label="language"></select>
+  </header>
+  <main id="main">
+    <section id="view-login" class="view" hidden>
+      <p id="tagline" class="tagline"></p>
+      <form id="login-form">
+        <label><span data-i18n="homeserver"></span><input id="f-hs" value="https://matrix.clinic.ng"></label>
+        <label><span data-i18n="username"></span><input id="f-user" value="amina.musa"></label>
+        <label><span data-i18n="password"></span><input id="f-pass" type="password" value="••••••••"></label>
+        <button type="submit" data-i18n="sign_in"></button>
+      </form>
+    </section>
+    <section id="view-rooms" class="view" hidden>
+      <p id="room-hint" class="hint"></p>
+      <ul id="room-list" class="rooms"></ul>
+    </section>
+    <section id="view-thread" class="view" hidden>
+      <button id="back" class="link">←</button>
+      <ul id="thread" class="thread"></ul>
+      <form id="composer">
+        <input id="c-text" data-i18n-ph="type_message">
+        <button type="submit" data-i18n="send"></button>
+      </form>
+    </section>
+  </main>
+  <div id="toast" hidden></div>
+</div></div>
+<script type="module" src="js/preview.js"></script>
+</body>
+</html>
