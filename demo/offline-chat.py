@@ -7,7 +7,11 @@ import json, os, sys, time, random
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PHASE_FILE = "/tmp/huc-phase"
-EVENTS = []   # pending inbound events for the client
+EVENTS = []   # global scenario events (first sync drains; single-client demo)
+TO_DEVICE = []  # legacy global to-device queue (unused when tokens known)
+ECHO_Q = {"a": [], "c": [], "demo": []}  # per-token timeline echoes
+TD_Q = {"a": [], "c": [], "demo": []}    # per-token to-device
+PEER = {"a": "c", "c": "a", "demo": "demo"}
 SENT = []     # everything the client sent (for assertions)
 MEDIA = {"mxc://hs.demo/xray1": (b"\x89PNG-fake-xray-bytes", "image/png"),
          "mxc://hs.demo/voice1": (b"OggS-fake-voice-note", "audio/ogg")}
@@ -43,8 +47,12 @@ class H(BaseHTTPRequestHandler):
             return True
         return False
 
+    def _token(self):
+        auth = self.headers.get("Authorization", "")
+        return auth.replace("Bearer ", "").strip() or "demo"
+
     def do_GET(self):
-        global EVENTS
+        global EVENTS, TO_DEVICE
         p = self.path.split("?")[0]
         if p == "/control/sent":
             return self._j({"sent": SENT})
@@ -53,9 +61,15 @@ class H(BaseHTTPRequestHandler):
         if p == "/_matrix/client/v3/versions":
             return self._j({"versions": ["v1.8"]})
         if p == "/_matrix/client/v3/sync":
-            evs, EVENTS = EVENTS, []
+            tok = self._token()
+            evs, EVENTS = EVENTS, []            # global scenario (once)
+            evs += ECHO_Q[tok]; ECHO_Q[tok] = []  # this client's echoes
+            td = TD_Q[tok] + TO_DEVICE
+            TD_Q[tok] = []; TO_DEVICE = []
             rooms = {"!clinic:hs.demo": {"timeline": {"events": evs}}} if evs else {}
-            return self._j({"next_batch": f"n{time.time()}", "rooms": {"join": rooms}})
+            return self._j({"next_batch": f"n{time.time()}",
+                            "to_device": {"events": td},
+                            "rooms": {"join": rooms}})
         if p.startswith("/_matrix/media/v3/download/"):
             mxc = "mxc://" + "/".join(p.split("/")[5:])
             blob, mime = MEDIA.get(mxc, (b"", "application/octet-stream"))
@@ -68,12 +82,37 @@ class H(BaseHTTPRequestHandler):
         return self._j({}, 404)
 
     def do_PUT(self):
-        if "/send/m.room.message/" in self.path:
+        global SEQ
+        if "/sendToDevice/" in self.path:
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            etype = self.path.split("/sendToDevice/")[1].split("/")[0]
+            # deliver to the peer's to-device queue (the room's other member)
+            tok = self._token()
+            for _uid, devices in body.get("messages", {}).items():
+                for _dev, content in devices.items():
+                    TD_Q[PEER.get(tok, "demo")].append(
+                        {"type": etype, "sender": f"@sender:{tok}", "content": content})
+            return self._j({})
+        if "/send/" in self.path:
             if self._maybe_drop():
                 return
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             SENT.append(body)
-            return self._j({"event_id": "$ok"})
+            # echo into the PEER's timeline — a sender's own sync must not
+            # consume what the other side is waiting for
+            tok = self._token()
+            SEQ += 1
+            etype = self.path.split("/send/")[1].split("/")[0]
+            ECHO_Q[PEER.get(tok, "demo")].append(
+                {"event_id": f"$echo{SEQ}", "sender": "@peer:hs.demo",
+                 "type": etype, "origin_server_ts": SEQ, "content": body})
+            return self._j({"event_id": f"$echo{SEQ}"})
+        if "/receipt/" in self.path or "/typing/" in self.path:
+            SENT.append({"ephemeral": self.path})
+            return self._j({})
+        if "/redact/" in self.path:
+            SENT.append({"redact": self.path})
+            return self._j({})
         return self._j({}, 404)
 
     def log_message(self, *a):

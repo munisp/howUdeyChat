@@ -12,7 +12,7 @@ export const SYNC_TIMEOUT_MS = 30000;
 export class MatrixLite {
   // store: an object implementing the Store contract (see store-memory.js /
   // store-idb.js). fetchImpl injectable for tests and for shells that pin TLS.
-  constructor({ homeserver, accessToken, userId, store, fetchImpl, deviceId }) {
+  constructor({ homeserver, accessToken, userId, store, fetchImpl, deviceId, e2ee }) {
     if (!homeserver || !accessToken || !userId || !store) {
       throw new Error("homeserver, accessToken, userId, store are required");
     }
@@ -22,9 +22,12 @@ export class MatrixLite {
     this.store = store;
     this.fetch = fetchImpl || globalThis.fetch;
     this.deviceId = deviceId || "HOWUDEYCHAT";
+    this.e2ee = e2ee || null;   // E2EE instance from e2ee.js (optional)
     this.since = null;
     this.running = false;
     this.retryMs = RETRY_BASE_MS;
+    this._pendingShares = []; // [roomId, keyShare] awaiting a live link
+    this._undecryptable = new Map(); // eventId -> [roomId, ev] awaiting keys
     this.onEvent = null;      // (roomId, event) => void
     this.onSyncState = null;  // ("offline"|"syncing"|"live", detail) => void
     this.onSent = null;       // (txnId, eventId) => void
@@ -75,18 +78,107 @@ export class MatrixLite {
   stop() { this.running = false; }
 
   async _applySync(data) {
+    // to-device FIRST: room key shares must be accepted before we try to
+    // decrypt timeline ciphertext that may arrive in the same sync
+    const toDevice = (data.to_device && data.to_device.events) || [];
+    for (const ev of toDevice) {
+      if (ev.type === "m.room_key" && this.e2ee) {
+        await this.e2ee.acceptRoomKey(ev.content);
+      }
+    }
+    if (toDevice.length && this._undecryptable.size) {
+      await this._retryUndecryptable();
+    }
     const joined = (data.rooms && data.rooms.join) || {};
     for (const [roomId, room] of Object.entries(joined)) {
       const events = (room.timeline && room.timeline.events) || [];
-      for (const ev of events) {
-        if (ev.type !== "m.room.message") continue;
+      for (let ev of events) {   // let: decryption replaces the event object
         if (ev.sender === this.userId) continue;       // own echo
         if (await this.store.hasEvent(ev.event_id)) continue; // dedupe
-        await this.store.putEvent(roomId, ev);
-        if (this.onEvent) this.onEvent(roomId, ev);
+        if (ev.type === "m.room.encrypted" && this.e2ee) {
+          try {
+            const plain = await this.e2ee.decryptEvent(ev.content);
+            ev = { ...ev, type: "m.room.message", content: plain,
+                   decrypted: true, original_type: "m.room.encrypted" };
+          } catch {
+            // key may arrive later (to-device lag) — park, never drop
+            this._undecryptable.set(ev.event_id, [roomId, ev]);
+            continue;
+          }
+        }
+        if (ev.type === "m.room.message" || ev.type === "m.reaction") {
+          await this.store.putEvent(roomId, ev);
+          if (this.onEvent) this.onEvent(roomId, ev);
+        }
+        if (ev.type?.startsWith("m.call.") && this.onCallEvent) {
+          this.onCallEvent(roomId, ev);
+        }
       }
       await this.store.touchRoom(roomId);
     }
+  }
+
+  async _retryUndecryptable() {
+    for (const [id, [roomId, ev]] of [...this._undecryptable]) {
+      try {
+        const plain = await this.e2ee.decryptEvent(ev.content);
+        const dec = { ...ev, type: "m.room.message", content: plain,
+                      decrypted: true, original_type: "m.room.encrypted" };
+        await this.store.putEvent(roomId, dec);
+        this._undecryptable.delete(id);
+        if (this.onEvent) this.onEvent(roomId, dec);
+      } catch { /* still no key — stays parked */ }
+    }
+  }
+
+  // --- E2EE plumbing ---------------------------------------------------------
+
+  async enableEncryption(roomId) {
+    if (!this.e2ee) throw new Error("no E2EE manager configured");
+    await this.store.setEncrypted(roomId, true);
+  }
+
+  async _shareKey(roomId, keyShare) {
+    // m.room_key to-device, addressed to the room's other member devices.
+    // (Membership discovery rides the homeserver; the demo addresses "*".)
+    const txnId = `huc-key-${Date.now()}`;
+    await this._req("PUT",
+      `/_matrix/client/v3/sendToDevice/m.room_key/${encodeURIComponent(txnId)}`,
+      { messages: { "*": { "*": { ...keyShare, room_id: roomId } } } });
+  }
+
+  // --- social semantics: reactions, redaction, receipts, typing --------------
+
+  async sendReaction(roomId, eventId, emoji) {
+    return this._sendEphemeral(roomId, "m.reaction", {
+      "m.relates_to": { rel_type: "m.annotation", event_id: eventId, key: emoji },
+    });
+  }
+
+  async redact(roomId, eventId, reason) {
+    const txnId = `huc-redact-${Date.now()}`;
+    return this._req("PUT",
+      `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/redact/${encodeURIComponent(eventId)}/${encodeURIComponent(txnId)}`,
+      reason ? { reason } : {});
+  }
+
+  async sendReadReceipt(roomId, eventId) {
+    return this._req("POST",
+      `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/receipt/m.read/${encodeURIComponent(eventId)}`,
+      {});
+  }
+
+  async sendTyping(roomId, typing, timeoutMs = 4000) {
+    return this._req("PUT",
+      `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/typing/${encodeURIComponent(this.userId)}`,
+      { typing, timeout: timeoutMs });
+  }
+
+  async _sendEphemeral(roomId, type, content) {
+    const txnId = `huc-eph-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    return this._req("PUT",
+      `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/send/${type}/${encodeURIComponent(txnId)}`,
+      content);
   }
 
   // --- sending -------------------------------------------------------------
@@ -99,11 +191,31 @@ export class MatrixLite {
 
   // Rich content: images, audio, video, files, locations, health artifacts.
   // Same durability contract as text — queued before any network attempt.
+  // In encrypted rooms the plaintext is sealed BEFORE it enters the outbox:
+  // the queue never holds cleartext.
   async sendContent(roomId, contentObj) {
     const txnId = `huc-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    let wire = contentObj;
+    let wireKind = contentObj.msgtype || "m.text";
+    if (this.e2ee && await this.store.isEncrypted?.(roomId)) {
+      const { payload, keyShare } = await this.e2ee.encryptFor(roomId, contentObj);
+      if (keyShare) {
+        try {
+          await this._shareKey(roomId, keyShare);
+        } catch {
+          // dead link: the share must not die with the request — stash it
+          // and let the outbox flush retry it before the ciphertext lands
+          this._pendingShares.push([roomId, keyShare]);
+        }
+      }
+      wire = { algorithm: "ng.huc.megolm.v1", ...payload };
+      wireKind = "m.room.encrypted";
+    }
     await this.store.outboxAdd({
-      txnId, roomId, body: contentObj.body || "",
-      kind: contentObj.msgtype || "m.text", content: contentObj,
+      txnId, roomId,
+      body: wireKind === "m.room.encrypted" ? "" : (contentObj.body || ""),
+      kind: wireKind, eventType: wireKind === "m.room.encrypted" ? "m.room.encrypted" : "m.room.message",
+      content: wire,
       attempts: 0, createdAt: Date.now(),
     });
     try {
@@ -117,11 +229,27 @@ export class MatrixLite {
   }
 
   async _flushOutbox() {
+    if (this._flushing) return; // reentrancy guard: send() and the sync loop
+    this._flushing = true;      // can both trigger a flush mid-flight
+    try {
+      await this._flushOutboxInner();
+    } finally {
+      this._flushing = false;
+    }
+  }
+
+  async _flushOutboxInner() {
+    // key shares go first — ciphertext must never arrive before its key
+    while (this._pendingShares.length) {
+      const [roomId, share] = this._pendingShares[0];
+      await this._shareKey(roomId, share);
+      this._pendingShares.shift();
+    }
     const pending = await this.store.outboxAll();
     for (const msg of pending) {
       try {
         const path = `/_matrix/client/v3/rooms/${encodeURIComponent(msg.roomId)}` +
-          `/send/m.room.message/${encodeURIComponent(msg.txnId)}`;
+          `/send/${msg.eventType || "m.room.message"}/${encodeURIComponent(msg.txnId)}`;
         const res = await this._req("PUT", path,
           msg.content || { msgtype: msg.kind, body: msg.body });
         await this.store.outboxRemove(msg.txnId);

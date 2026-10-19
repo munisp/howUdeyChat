@@ -18,6 +18,7 @@ export class IdbStore {
         db.createObjectStore("rooms", { keyPath: "roomId" });
         db.createObjectStore("outbox", { keyPath: "txnId" });
         db.createObjectStore("media", { keyPath: "mxc" }); // offline blob cache
+        // e2ee state + encrypted-room flags live in "kv"
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
@@ -52,4 +53,8 @@ export class IdbStore {
   async outboxAll() { return (await this._tx("outbox", "readonly", (s) => s.getAll())) || []; }
   async mediaGet(mxc) { return this._tx("media", "readonly", (s) => s.get(mxc)); }
   async mediaPut(mxc, blob, mime) { return this._tx("media", "readwrite", (s) => s.put({ mxc, blob, mime })); }
+  async isEncrypted(roomId) { return !!(await this._tx("kv", "readonly", (s) => s.get(`e2ee-room:${roomId}`))); }
+  async setEncrypted(roomId, on) { return this._tx("kv", "readwrite", (s) => s.put(on, `e2ee-room:${roomId}`)); }
+  async e2eeGet(k) { return this._tx("kv", "readonly", (s) => s.get(`e2ee:${k}`)); }
+  async e2eePut(k, v) { return this._tx("kv", "readwrite", (s) => s.put(v, `e2ee:${k}`)); }
 }

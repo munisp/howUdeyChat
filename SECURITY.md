@@ -21,16 +21,16 @@ honest about what ships today versus what is staged.
 - No message content is ever written to logs, analytics, or the service
   worker cache.
 
-## Layer 3 — end-to-end (staged, not shipped)
+## Layer 3 — end-to-end (SHIPPED, phase 2 — ADR-0005)
 
-- The Matrix protocol's E2EE (Olm/Megolm, Apache-2.0 implementations exist)
-  is the planned upgrade: it encrypts room content so the *homeserver
-  operator* cannot read patient messages.
-- We do not hand-roll E2EE. When this lands it composes a licensed,
-  audited implementation at the transport boundary — the clean-room
-  matrix-lite surface is deliberately small enough to wrap.
-- Until then, the honest guarantee is: TLS + operator-trusted server, and
-  the operator is the ministry/NGO itself — not a foreign platform.
+- Megolm-shaped group sessions on audited platform crypto (WebCrypto
+  AES-256-GCM + HKDF ratchet): the homeserver holds ciphertext only.
+- Nothing hand-rolled: AES-GCM/HKDF are the platform's; the portable Rust
+  envelope (AES-256-CTR + HMAC-SHA256) carries NIST test vectors.
+- Wire-level interop with libolm/vodozemac Megolm is the documented
+  composition point; today's guarantee is E2EE between howUdeyChat clients,
+  operator-blind.
+- Call media: DTLS-SRTP (WebRTC native); signaling inherits room E2EE.
 
 ## Identity
 

@@ -55,6 +55,24 @@ node --test tests/                 # 12 unit tests
 sh demo/offline-chat.sh            # e2e: up → down → recovery, rich content
 ```
 
+## Phase 2 (shipped): closing the WhatsApp gap
+
+- **E2EE** ([ADR-0005](docs/architecture/adr-0005-e2ee.md)): Megolm-shaped
+  group sessions on WebCrypto AES-256-GCM + HKDF ratchet — the homeserver
+  holds ciphertext only; key share rides `m.room_key` to-device; outbox
+  never holds cleartext; out-of-order safe. Portable Rust envelope cipher
+  (AES-256-CTR + HMAC, NIST vectors) in `core/huc-core`.
+- **Voice/video calls** ([ADR-0006](docs/architecture/adr-0006-calls.md)):
+  `m.call.*` signaling + WebRTC, TURN-configurable for CGNAT reality,
+  injected-RTC seam so the state machine is fully unit-tested.
+- **Social semantics** ([ADR-0007](docs/architecture/adr-0007-social-semantics.md)):
+  reactions, redaction, read receipts, typing — the care-relevant ones only.
+- Why Matrix and not Signal: [docs/signal-vs-matrix.md](docs/signal-vs-matrix.md)
+
+```sh
+sh demo/phase2.sh   # e2e: E2EE roundtrip, call signaling, reactions
+```
+
 ## Doctrine
 
 - **Compose, don't fork.** Homeserver is off-the-shelf Apache-2.0; our code

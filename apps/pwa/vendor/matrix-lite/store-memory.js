@@ -6,6 +6,8 @@ export class MemoryStore {
     this.outbox = new Map();      // txnId -> msg
     this.rooms = new Map();       // roomId -> lastTs
     this.media = new Map();       // mxc -> { blob, mime }
+    this.encrypted = new Set();   // roomIds with E2EE enabled
+    this.e2ee = new Map();        // e2ee state
     this.syncToken = null;
   }
   async getSyncToken() { return this.syncToken; }
@@ -23,4 +25,8 @@ export class MemoryStore {
   async outboxAll() { return [...this.outbox.values()]; }
   async mediaGet(mxc) { return this.media.get(mxc); }
   async mediaPut(mxc, blob, mime) { this.media.set(mxc, { blob, mime }); }
+  async isEncrypted(roomId) { return this.encrypted.has(roomId); }
+  async setEncrypted(roomId, on) { on ? this.encrypted.add(roomId) : this.encrypted.delete(roomId); }
+  async e2eeGet(k) { return this.e2ee.get(k); }
+  async e2eePut(k, v) { this.e2ee.set(k, v); }
 }
