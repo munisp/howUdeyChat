@@ -47,6 +47,8 @@ button.link { background: none; color: var(--brand-2); padding: 4px 8px; }
   box-shadow: 0 1px 3px #0001; cursor: pointer;
 }
 
+.thread-bar { display: flex; gap: 4px; }
+.thread-bar #back { margin-right: auto; }
 .thread { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
 .thread li {
   max-width: 82%; padding: 9px 12px; border-radius: 14px; background: var(--bubble-in);
@@ -78,3 +80,20 @@ canvas.map {
   padding: 10px 12px; border-radius: 8px; margin-bottom: 6px;
 }
 .artifact span { font-size: 14px; color: var(--muted); }
+
+/* calls */
+#call-overlay {
+  position: fixed; inset: 0; background: #0b3d2eee; z-index: 40;
+  display: grid; place-items: center; padding: 20px;
+}
+#call-overlay[hidden] { display: none; }
+.call-card {
+  background: var(--card); border-radius: 16px; padding: 22px; width: 100%;
+  max-width: 360px; display: grid; gap: 10px; text-align: center;
+}
+#call-remote { width: 100%; border-radius: 10px; background: #101820; }
+#call-local { width: 90px; border-radius: 8px; position: absolute; bottom: 90px; right: 28px; }
+.call-controls { display: flex; gap: 8px; justify-content: center; }
+.call-controls .ok { background: var(--ok); }
+.call-controls .danger { background: var(--off); }
+.msg-edited { font-size: 11px; color: var(--muted); font-style: italic; margin-left: 4px; }

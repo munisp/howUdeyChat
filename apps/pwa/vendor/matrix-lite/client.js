@@ -110,6 +110,9 @@ export class MatrixLite {
           await this.store.putEvent(roomId, ev);
           if (this.onEvent) this.onEvent(roomId, ev);
         }
+        if (ev.state_key !== undefined && this.onStateEvent) {
+          this.onStateEvent(roomId, ev); // m.call.member etc. (group calls)
+        }
         if (ev.type?.startsWith("m.call.") && this.onCallEvent) {
           this.onCallEvent(roomId, ev);
         }
@@ -172,6 +175,23 @@ export class MatrixLite {
     return this._req("PUT",
       `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/typing/${encodeURIComponent(this.userId)}`,
       { typing, timeout: timeoutMs });
+  }
+
+  async sendStateEvent(roomId, type, content, stateKey = "") {
+    return this._req("PUT",
+      `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/state/${type}/${encodeURIComponent(stateKey)}`,
+      content);
+  }
+
+  // m.replace — edit a sent message. The original stays in the DAG; clients
+  // render the newest edit. Redaction (remove) is a different operation.
+  async sendEdit(roomId, eventId, newBody) {
+    return this._sendEphemeral(roomId, "m.room.message", {
+      msgtype: "m.text",
+      body: `* ${newBody}`,
+      "m.new_content": { msgtype: "m.text", body: newBody },
+      "m.relates_to": { rel_type: "m.replace", event_id: eventId },
+    });
   }
 
   async _sendEphemeral(roomId, type, content) {

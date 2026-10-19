@@ -71,7 +71,24 @@ sh demo/offline-chat.sh            # e2e: up → down → recovery, rich content
 
 ```sh
 sh demo/phase2.sh   # e2e: E2EE roundtrip, call signaling, reactions
+sh demo/phase3.sh   # e2e: group calls, editing, device sync
 ```
+
+## Phase 3 (shipped): scale + daily-use polish
+
+- **Group calls** ([ADR-0008](docs/architecture/adr-0008-group-calls-sfu.md)):
+  MSC3401-shaped — the room is the call, `m.call.member` state converges on
+  flaky links, deterministic focus agreement, operator-run SFU seam
+  (LiveKit, Apache-2.0), TURN-configured for CGNAT.
+- **Call UI**: incoming-call overlay, answer/mute/video/hang-up, in all five
+  languages; 1:1 calls from any thread header.
+- **Multi-device** ([ADR-0009](docs/architecture/adr-0009-multi-device-push-editing.md)):
+  new phone adopts E2EE sessions via a one-time transfer key (sealed
+  payload, ratchet continues, wrong key fails closed).
+- **Web Push**: content-free nudge → sync → render locally; optional FCM on
+  Android, graceful without Play services.
+- **Message editing** (`m.replace`): safety-critical corrections with audit
+  trail and plain-text fallback.
 
 ## Doctrine
 

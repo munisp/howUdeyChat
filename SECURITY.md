@@ -31,6 +31,11 @@ honest about what ships today versus what is staged.
   composition point; today's guarantee is E2EE between howUdeyChat clients,
   operator-blind.
 - Call media: DTLS-SRTP (WebRTC native); signaling inherits room E2EE.
+- Group calls: media transits the operator's SFU (DTLS-SRTP client↔SFU).
+  The SFU is the trust boundary — operator-owned, documented here; E2EE
+  group media (insertable streams) is a noted future hardening.
+- Multi-device: session keys move device-to-device sealed under a one-time
+  transfer key; the server never sees them (ADR-0009).
 
 ## Identity
 

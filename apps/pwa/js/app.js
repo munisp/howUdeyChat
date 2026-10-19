@@ -5,6 +5,8 @@ import { MatrixLite, login } from "./vendor/matrix-lite/client.js";
 import { IdbStore } from "./vendor/matrix-lite/store-idb.js";
 import { LANGS, lang, setLang, t } from "./i18n.js";
 import { renderEvent } from "./render.js";
+import { CallManager } from "./vendor/matrix-lite/calls.js";
+import { enablePush } from "./push.js";
 
 const $ = (id) => document.getElementById(id);
 const views = { login: $("view-login"), rooms: $("view-rooms"), thread: $("view-thread") };
@@ -73,7 +75,17 @@ async function paintThread() {
   $("empty-thread").hidden = events.length + pending.length > 0;
   for (const ev of events) {
     const li = await renderEvent(ev, { client, store });
-    if (ev.sender === client?.userId) li.classList.add("mine");
+    if (ev.sender === client?.userId) {
+      li.classList.add("mine");
+      // double-click/tap-tap own message to edit (m.replace)
+      li.ondblclick = async () => {
+        const current = ev.content?.["m.new_content"]?.body || ev.content?.body || "";
+        const next = prompt("", current);
+        if (next && next !== current) {
+          await client.sendEdit(currentRoom, ev.event_id, next);
+        }
+      };
+    }
     const meta = document.createElement("span");
     meta.className = "meta";
     meta.textContent = new Date(ev.origin_server_ts || Date.now()).toLocaleString();
@@ -102,6 +114,26 @@ async function startClient(cfg) {
     if (roomId === currentRoom) await paintThread();
   };
   client.onSent = async () => { await paintThread(); };
+  // calls + push ride the same session
+  callMgr = new CallManager({ client, rtc: browserRtc(), turnServers: window.HUC_TURN || [] });
+  callMgr.onIncoming = (session) => {
+    activeCall = session;
+    callOverlay(true, t("incoming_call"), "");
+    wireCallButtons(session);
+  };
+  if (window.HUC_VAPID) {
+    enablePush(window.HUC_VAPID, async (sub) => {
+      await fetch(`${client.hs}/_matrix/client/v3/pushers/set`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${client.token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pushkey: sub.endpoint, kind: "http", app_id: "ng.openhealth.howudeychat",
+          app_display_name: "howUdeyChat", device_display_name: "patient device",
+          lang: lang(), data: { url: sub.endpoint }, append: true,
+        }),
+      }).catch(() => {}); // push is a bonus, never a failure path
+    });
+  }
   client.start(); // runs forever with backoff; stop() on logout
   show("rooms");
   await paintRooms();
@@ -140,6 +172,62 @@ $("composer").onsubmit = async (e) => {
 };
 
 $("back").onclick = async () => { currentRoom = null; show("rooms"); await paintRooms(); };
+
+// --- calls (browser RTC seam) --------------------------------------------------
+let callMgr = null;
+let activeCall = null;
+
+function browserRtc() {
+  return {
+    createPeer: (cfg) => {
+      const pc = new RTCPeerConnection(cfg);
+      return pc;
+    },
+    getUserMedia: (c) => navigator.mediaDevices.getUserMedia(c),
+  };
+}
+
+function callOverlay(show2, title, state) {
+  $("call-overlay").hidden = !show2;
+  if (title) $("call-title").textContent = title;
+  if (state) $("call-state").textContent = state;
+}
+
+function wireCallButtons(session) {
+  $("call-answer").hidden = session.direction !== "incoming" || session.state !== "idle";
+  $("call-mute").hidden = false;
+  $("call-video").hidden = false;
+  session.onState = (s) => {
+    $("call-state").textContent = t(`status_${s}`) || s;
+    if (s === "ended") { callOverlay(false); activeCall = null; toast(t("call_ended")); }
+  };
+}
+
+$("btn-call").onclick = () => placeCall(false);
+$("btn-video").onclick = () => placeCall(true);
+async function placeCall(video) {
+  if (!callMgr || !currentRoom || activeCall) return;
+  activeCall = await callMgr.placeCall(currentRoom, { video });
+  callOverlay(true, t("call_with"), t("status_syncing"));
+  wireCallButtons(activeCall);
+  const local = activeCall.localStream;
+  if (video && local) { $("call-local").srcObject = local; $("call-local").hidden = false; }
+}
+
+$("call-answer").onclick = async () => {
+  if (activeCall?.direction !== "incoming") return;
+  await activeCall.answer({ video: false });
+  $("call-answer").hidden = true;
+};
+$("call-hangup").onclick = async () => { if (activeCall) await activeCall.hangup(); };
+$("call-mute").onclick = () => {
+  const tracks = activeCall?.localStream?.getAudioTracks?.() || [];
+  tracks.forEach((tr) => { tr.enabled = !tr.enabled; });
+};
+$("call-video").onclick = () => {
+  const tracks = activeCall?.localStream?.getVideoTracks?.() || [];
+  tracks.forEach((tr) => { tr.enabled = !tr.enabled; });
+};
 
 // --- boot --------------------------------------------------------------------
 buildLangPicker();

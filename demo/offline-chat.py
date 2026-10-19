@@ -107,6 +107,19 @@ class H(BaseHTTPRequestHandler):
                 {"event_id": f"$echo{SEQ}", "sender": "@peer:hs.demo",
                  "type": etype, "origin_server_ts": SEQ, "content": body})
             return self._j({"event_id": f"$echo{SEQ}"})
+        if "/state/" in self.path:
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            tok = self._token()
+            SEQ += 1
+            etype = self.path.split("/state/")[1].split("/")[0]
+            sender = f"@sender:{tok}"
+            # state events land in BOTH timelines (everyone sees membership)
+            ev = {"event_id": f"$st{SEQ}", "sender": sender, "type": etype,
+                  "state_key": sender, "origin_server_ts": SEQ, "content": body}
+            for q in ECHO_Q.values():
+                q.append(ev)
+            SENT.append({"state": etype, "content": body})
+            return self._j({"event_id": f"$st{SEQ}"})
         if "/receipt/" in self.path or "/typing/" in self.path:
             SENT.append({"ephemeral": self.path})
             return self._j({})

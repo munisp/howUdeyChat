@@ -43,7 +43,11 @@
 
     <!-- thread -->
     <section id="view-thread" class="view" hidden>
-      <button id="back" class="link">←</button>
+      <div class="thread-bar">
+        <button id="back" class="link">←</button>
+        <button id="btn-call" class="link" title="call">📞</button>
+        <button id="btn-video" class="link" title="video">🎥</button>
+      </div>
       <ul id="thread" class="thread"></ul>
       <p id="empty-thread" class="hint" hidden></p>
       <form id="composer">
@@ -54,6 +58,22 @@
   </main>
 
   <div id="toast" role="status" hidden></div>
+
+  <!-- call overlay: incoming + in-call -->
+  <div id="call-overlay" hidden>
+    <div class="call-card">
+      <p id="call-title"></p>
+      <p id="call-state" class="hint"></p>
+      <video id="call-remote" autoplay playsinline hidden></video>
+      <video id="call-local" autoplay playsinline muted hidden></video>
+      <div class="call-controls">
+        <button id="call-answer" class="ok" hidden data-i18n="answer"></button>
+        <button id="call-mute" hidden data-i18n="mute"></button>
+        <button id="call-video" hidden data-i18n="video"></button>
+        <button id="call-hangup" class="danger" data-i18n="hang_up"></button>
+      </div>
+    </div>
+  </div>
 </div>
 <script type="module" src="js/app.js"></script>
 </body>
