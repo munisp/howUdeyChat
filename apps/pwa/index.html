@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b3d2e">
+<title>howUdeyChat</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app">
+  <header id="bar">
+    <h1 id="bar-title">howUdeyChat</h1>
+    <span id="status" class="pill" role="status">—</span>
+    <select id="lang" aria-label="language"></select>
+  </header>
+
+  <main id="main">
+    <!-- sign-in -->
+    <section id="view-login" class="view">
+      <p id="tagline" class="tagline"></p>
+      <form id="login-form">
+        <label><span data-i18n="homeserver"></span>
+          <input id="f-hs" autocomplete="url" placeholder="https://matrix.clinic.ng">
+        </label>
+        <label><span data-i18n="username"></span>
+          <input id="f-user" autocomplete="username" required>
+        </label>
+        <label><span data-i18n="password"></span>
+          <input id="f-pass" type="password" autocomplete="current-password" required>
+        </label>
+        <button type="submit" data-i18n="sign_in"></button>
+        <p id="login-error" class="error" hidden></p>
+      </form>
+    </section>
+
+    <!-- room list -->
+    <section id="view-rooms" class="view" hidden>
+      <p id="room-hint" class="hint"></p>
+      <ul id="room-list" class="rooms"></ul>
+    </section>
+
+    <!-- thread -->
+    <section id="view-thread" class="view" hidden>
+      <button id="back" class="link">←</button>
+      <ul id="thread" class="thread"></ul>
+      <p id="empty-thread" class="hint" hidden></p>
+      <form id="composer">
+        <input id="c-text" data-i18n-ph="type_message" autocomplete="off">
+        <button type="submit" data-i18n="send"></button>
+      </form>
+    </section>
+  </main>
+
+  <div id="toast" role="status" hidden></div>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

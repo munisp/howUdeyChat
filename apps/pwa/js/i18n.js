@@ -1,0 +1,141 @@
+// i18n — all patient-facing strings as data. Languages: English, Nigerian
+// Pidgin, Hausa, Yoruba, Igbo. Add a language = add one object; the picker,
+// the <html lang>, and every screen update from the same source.
+export const LANGS = {
+  en: "English",
+  pcm: "Naija (Pidgin)",
+  ha: "Hausa",
+  yo: "Yorùbá",
+  ig: "Igbo",
+};
+
+export const msgs = {
+  en: {
+    app_name: "howUdeyChat",
+    tagline: "Your clinic in your pocket — works without internet",
+    sign_in: "Sign in",
+    homeserver: "Clinic server",
+    username: "Username",
+    password: "Password",
+    signing_in: "Signing in…",
+    rooms: "Conversations",
+    type_message: "Type a message…",
+    send: "Send",
+    queued_offline: "Saved — will send when network returns",
+    status_live: "Connected",
+    status_syncing: "Connecting…",
+    status_offline: "No network — messages will wait",
+    pick_language: "Choose your language",
+    health_room_hint: "Your clinic and care team will appear here",
+    retry: "Retry",
+    logout: "Log out",
+    empty_thread: "No messages yet. Say hello to your clinic.",
+    demo_mode: "Demo mode (no server)",
+  },
+  pcm: {
+    app_name: "howUdeyChat",
+    tagline: "Your clinic dey your pocket — e dey work without internet",
+    sign_in: "Enter",
+    homeserver: "Clinic server",
+    username: "Your username",
+    password: "Password",
+    signing_in: "We dey enter…",
+    rooms: "Your chats",
+    type_message: "Write your message…",
+    send: "Send am",
+    queued_offline: "We don save am — e go go when network come back",
+    status_live: "E don connect",
+    status_syncing: "E dey connect…",
+    status_offline: "No network — your message go wait",
+    pick_language: "Pick your language",
+    health_room_hint: "Your clinic and care team go show here",
+    retry: "Try again",
+    logout: "Comot",
+    empty_thread: "No message yet. Greet your clinic first.",
+    demo_mode: "Demo mode (no server)",
+  },
+  ha: {
+    app_name: "howUdeyChat",
+    tagline: "Asibitinka a jakanunka — yana aiki ba da intanet ba",
+    sign_in: "Shiga",
+    homeserver: "Sabar asibiti",
+    username: "Sunan mai amfani",
+    password: "Kalmar sirri",
+    signing_in: "Ana shiga…",
+    rooms: "Tattaunawa",
+    type_message: "Rubuta saƙo…",
+    send: "Aika",
+    queued_offline: "An adana — za a aika idan haya ta dawo",
+    status_live: "An haɗa",
+    status_syncing: "Ana haɗawa…",
+    status_offline: "Babu haya — saƙonka zai jira",
+    pick_language: "Zaɓi harshenka",
+    health_room_hint: "Asibitinka da ma'aikatan lafiya za su bayyana a nan",
+    retry: "Sake gwadawa",
+    logout: "Fita",
+    empty_thread: "Babu saƙo tukuna. Gai da asibitinka.",
+    demo_mode: "Yanayin gwaji (babu sabar)",
+  },
+  yo: {
+    app_name: "howUdeyChat",
+    tagline: "Ilé-iwòsàn rẹ ló wà nínú àpò rẹ — ó ń ṣiṣẹ́ láìsí íntánẹ́ẹ̀tì",
+    sign_in: "Wọlé",
+    homeserver: "Sáríwà ilé-iwòsàn",
+    username: "Orúkọ olòrúkọ",
+    password: "Ọ̀rọ̀ àṣírí",
+    signing_in: "Ń wọlé…",
+    rooms: "Àwọn ìjíròrò",
+    type_message: "Kọ ìfiráńṣẹ́ rẹ…",
+    send: "Fi ránṣẹ́",
+    queued_offline: "A ti fipamọ́ — yóò lọ tí nẹ́tíwọ̀ọ̀kì bá padà",
+    status_live: "Ó ti sopọ̀",
+    status_syncing: "Ń sopọ̀…",
+    status_offline: "Kò sí nẹ́tíwọ̀ọ̀kì — ìfiráńṣẹ́ rẹ yóò dúró",
+    pick_language: "Yan èdè rẹ",
+    health_room_hint: "Ilé-iwòsàn àti àwọn olùtọ́jú rẹ yóò fi hàn níbí",
+    retry: "Tun gbìyànjú",
+    logout: "Jáde",
+    empty_thread: "Kò sí ìfiráńṣẹ́ kankan. Káàbọ̀ sí ilé-iwòsàn rẹ.",
+    demo_mode: "Ipele àfihàn (kò sí sáríwà)",
+  },
+  ig: {
+    app_name: "howUdeyChat",
+    tagline: "Ụlọ ọgwụ gị n'akpa gị — ọ na-arụ ọrụ na-enweghị ịntanetị",
+    sign_in: "Banye",
+    homeserver: "Sava ụlọ ọgwụ",
+    username: "Aha ọrụ",
+    password: "Okwuntughe",
+    signing_in: "Na-abanye…",
+    rooms: "Mkparịta ụka",
+    type_message: "Dee ozi…",
+    send: "Ziga",
+    queued_offline: "Echekwala — a ga-eziga mgbe netwọk laghachi",
+    status_live: "Ejikọrọ",
+    status_syncing: "Na-ejikọ…",
+    status_offline: "Enweghị netwọk — ozi gị ga-echere",
+    pick_language: "Họrọ asụsụ gị",
+    health_room_hint: "Ụlọ ọgwụ gị na ndị na-elekọta gị ga-apụta ebe a",
+    retry: "Nwaa ọzọ",
+    logout: "Pụọ",
+    empty_thread: "Enweghị ozi ọ bụla. Kelee ụlọ ọgwụ gị.",
+    demo_mode: "Ọnọdụ ngosi (enweghị sava)",
+  },
+};
+
+// storage shim so the module also loads under node (tests)
+const store = typeof localStorage !== "undefined"
+  ? localStorage
+  : { getItem: () => null, setItem: () => {} };
+
+let current = store.getItem("huc-lang") || "en";
+
+export function lang() { return current; }
+export function setLang(code) {
+  if (!msgs[code]) return;
+  current = code;
+  store.setItem("huc-lang", code);
+  if (typeof document !== "undefined") document.documentElement.lang = code;
+}
+export function t(key) {
+  return (msgs[current] && msgs[current][key]) || msgs.en[key] || key;
+}

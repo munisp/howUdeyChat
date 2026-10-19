@@ -1,0 +1,80 @@
+/* howUdeyChat — low-end-device-first. No framework, no webfont download,
+   system fonts only (zero bytes of font over a 2G link). */
+:root {
+  --bg: #f4f6f4; --card: #ffffff; --ink: #17251e; --muted: #5b6b60;
+  --brand: #0b3d2e; --brand-2: #146b4f; --bubble-in: #ffffff; --bubble-out: #d8f2e2;
+  --warn: #b45309; --ok: #146b4f; --off: #9a3412;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg); color: var(--ink);
+}
+#app { max-width: 640px; margin: 0 auto; height: 100%; display: flex; flex-direction: column; }
+
+#bar {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  background: var(--brand); color: #fff;
+}
+#bar h1 { font-size: 18px; margin: 0; flex: 0 0 auto; }
+#bar select { margin-left: auto; font: inherit; padding: 4px; }
+.pill { padding: 2px 10px; border-radius: 999px; font-size: 12px; background: #ffffff2e; }
+.pill.live { background: #34d399; color: #053b27; }
+.pill.syncing { background: #fbbf24; color: #513c06; }
+.pill.offline { background: #f87171; color: #4c0d0d; }
+
+#main { flex: 1; overflow-y: auto; padding: 14px; }
+.view[hidden] { display: none; }
+.tagline, .hint { color: var(--muted); }
+
+#login-form { display: grid; gap: 12px; max-width: 360px; }
+#login-form label { display: grid; gap: 4px; font-size: 14px; }
+#login-form input, #composer input {
+  font: inherit; padding: 10px 12px; border: 1px solid #c9d4cc; border-radius: 10px;
+  background: #fff;
+}
+button {
+  font: inherit; padding: 10px 16px; border: 0; border-radius: 10px;
+  background: var(--brand-2); color: #fff; cursor: pointer;
+}
+button.link { background: none; color: var(--brand-2); padding: 4px 8px; }
+.error { color: var(--warn); }
+
+.rooms { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rooms li {
+  background: var(--card); border-radius: 12px; padding: 14px;
+  box-shadow: 0 1px 3px #0001; cursor: pointer;
+}
+
+.thread { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
+.thread li {
+  max-width: 82%; padding: 9px 12px; border-radius: 14px; background: var(--bubble-in);
+  box-shadow: 0 1px 2px #0001; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.thread li.mine { justify-self: end; background: var(--bubble-out); }
+.thread li .meta { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
+.thread li.pending { opacity: 0.65; }
+
+#composer { display: flex; gap: 8px; position: sticky; bottom: 0; padding: 8px 0; background: var(--bg); }
+#composer input { flex: 1; }
+
+#toast {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+  background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 10px;
+}
+
+/* rich content */
+.media-img, .media-video { max-width: 100%; border-radius: 10px; display: block; }
+.thread li audio { max-width: 100%; }
+.media-caption { display: block; margin-top: 4px; }
+.media-pending { outline: 2px dashed var(--warn); cursor: pointer; }
+canvas.map {
+  width: 100%; height: 200px; border-radius: 10px; display: block;
+  background: #e8f0ea; margin-top: 6px;
+}
+.artifact {
+  display: grid; gap: 2px; background: #fff; border-left: 4px solid var(--brand-2);
+  padding: 10px 12px; border-radius: 8px; margin-bottom: 6px;
+}
+.artifact span { font-size: 14px; color: var(--muted); }

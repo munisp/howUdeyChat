@@ -1,0 +1,10 @@
+{
+  "name": "howUdeyChat",
+  "short_name": "howUdeyChat",
+  "description": "Sovereign patient messaging — offline-first, all Nigerian languages.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f4f6f4",
+  "theme_color": "#0b3d2e",
+  "icons": []
+}

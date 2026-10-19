@@ -1,0 +1,9 @@
+[package]
+name = "huc-core"
+version = "0.1.0"
+edition = "2021"
+description = "howUdeyChat crypto/util core — pure std, zero dependencies, auditable"
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["rlib", "staticlib"]

@@ -1,0 +1,8 @@
+{
+  "appId": "ng.openhealth.howudeychat",
+  "appName": "howUdeyChat",
+  "webDir": "apps/pwa",
+  "backgroundColor": "#0b3d2e",
+  "android": { "allowMixedContent": false },
+  "ios": { "contentInset": "always" }
+}
