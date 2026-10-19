@@ -11,6 +11,8 @@ PASSWORDS = {} # username -> last set password
 
 # registry: patient_id -> phone
 REGISTRY = {"OH-KD-0001": "2348011112222", "OH-KD-0002": "2348099990000"}
+# staff registry: licence -> (role, phone)
+STAFF = {"MDCN-4521": ("doctor", "2348022223333"), "NMCN-8890": ("nurse", "2348033334444")}
 
 
 def norm_phone(p):
@@ -45,6 +47,15 @@ class H(BaseHTTPRequestHandler):
             phone = norm_phone(q.get("phone", [""])[0])
             if pid in REGISTRY and (not phone or REGISTRY[pid] == phone):
                 return self._json(200, {"results": [{"patient_id": pid, "phone": REGISTRY[pid]}]})
+            return self._json(200, {"results": []})
+        if self.path.startswith("/staff/search"):
+            from urllib.parse import urlparse, parse_qs
+            q = parse_qs(urlparse(self.path).query)
+            lic = q.get("licence", [""])[0]
+            role = q.get("role", [""])[0]
+            phone = norm_phone(q.get("phone", [""])[0])
+            if lic in STAFF and STAFF[lic] == (role, phone):
+                return self._json(200, {"results": [{"licence": lic, "role": role}]})
             return self._json(200, {"results": []})
         if self.path == "/control/state":
             return self._json(200, {"created": CREATED, "deactivated": DEACTIVATED, "passwords": PASSWORDS})

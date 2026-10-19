@@ -37,6 +37,7 @@ Speaks English, Naija (Pidgin), Hausa, Yorùbá, Igbo.
 ```
 packages/matrix-lite/   clean-room Matrix client core (JS/TS types, no SDK)
 apps/pwa/               the app — service worker, offline shell, i18n, renderers
+apps/console/           staff console — claim escalations, chat/call patients
 apps/android/           Capacitor shell (build notes)
 apps/ios/               Capacitor shell (build notes)
 relay/                  Go store-and-forward relay (clinic hotspot / LGA edge)
@@ -112,6 +113,26 @@ is clinic-assisted, end to end, in `admin/` (std-only Go):
 
 ```sh
 sh demo/admin.sh   # e2e: provision → activate → fail-closed paths → revoke
+```
+
+## Phase 5 (shipped): staff engagement
+
+A nurse or doctor engages a patient as a peer on the same homeserver
+([ADR-0011](docs/architecture/adr-0011-staff-engagement.md)):
+
+- **Staff provisioning** — `POST /v1/staff/provision` gated against the
+  professional registry: licence number + role + phone must all match
+  (MDCN/NMCN/CHW rosters). Roles are a closed set (`doctor|nurse|chw|admin`);
+  activation is the same fail-closed single-use-code flow as patients.
+- **Escalation queue** — patient app or triage bot calls `POST /v1/escalate`;
+  staff poll `/v1/queue`; first claim wins (409 for latecomers), only the
+  claimer resolves. Queue persists across restarts.
+- **Staff console** (`apps/console/`) — sign in, see waiting patients, claim,
+  chat + voice/video call in the patient's room, resolve. Built on the same
+  matrix-lite core as the patient app: engagement is a room, not a feature.
+
+```sh
+sh demo/phase5.sh   # e2e: licence gate → activate → escalate → claim → chat → resolve
 ```
 
 ## Doctrine

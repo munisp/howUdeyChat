@@ -48,7 +48,10 @@ type Config struct {
 
 type Account struct {
 	Username    string `json:"username"`
-	PatientID   string `json:"patient_id"`
+	Kind        string `json:"kind"` // "patient" (default) | "staff"
+	PatientID   string `json:"patient_id,omitempty"`
+	Licence     string `json:"licence,omitempty"` // staff: MDCN/NMCN/etc number
+	Role        string `json:"role,omitempty"`    // staff: doctor | nurse | chw | admin
 	Phone       string `json:"phone"`
 	DisplayName string `json:"display_name"`
 	CodeHash    string `json:"code_hash"` // sha256 of setup code — never the code
@@ -60,11 +63,24 @@ type Account struct {
 	RevokeWhy   string `json:"revoke_reason,omitempty"`
 }
 
+// Escalation — a patient (or the gateway bot) asks for a human.
+type Escalation struct {
+	ID        string `json:"id"`
+	Username  string `json:"username"`  // patient account
+	RoomID    string `json:"room_id"`   // where the conversation lives
+	Reason    string `json:"reason"`
+	Status    string `json:"status"`    // waiting | claimed | resolved
+	ClaimedBy string `json:"claimed_by,omitempty"`
+	CreatedAt int64  `json:"created_at"`
+	ClaimedAt int64  `json:"claimed_at,omitempty"`
+}
+
 type Service struct {
 	cfg     Config
 	client  *http.Client
 	mu      sync.Mutex
 	accounts map[string]*Account // username -> account
+	queue    []*Escalation       // waiting/claimed escalations, oldest first
 }
 
 func main() {
@@ -80,7 +96,7 @@ func main() {
 	if err := os.MkdirAll(cfg.DataDir, 0o700); err != nil {
 		log.Fatal(err)
 	}
-	s := &Service{cfg: cfg, client: &http.Client{Timeout: 10 * time.Second}, accounts: map[string]*Account{}}
+	s := &Service{cfg: cfg, client: &http.Client{Timeout: 10 * time.Second}, accounts: map[string]*Account{}, queue: []*Escalation{}}
 	s.load()
 	go s.spoolWorker()
 
@@ -90,6 +106,12 @@ func main() {
 	mux.HandleFunc("POST /v1/activate", s.handleActivate) // patient-facing: no mgmt token, code IS the credential
 	mux.HandleFunc("GET /v1/accounts", s.auth(s.handleAccounts))
 	mux.HandleFunc("POST /v1/revoke", s.auth(s.handleRevoke))
+	mux.HandleFunc("POST /v1/staff/provision", s.auth(s.handleStaffProvision))
+	mux.HandleFunc("POST /v1/staff/activate", s.handleStaffActivate) // staff-facing: code is the credential
+	mux.HandleFunc("POST /v1/escalate", s.handleEscalate)            // patient/bot-facing
+	mux.HandleFunc("GET /v1/queue", s.auth(s.handleQueue))
+	mux.HandleFunc("POST /v1/queue/claim", s.auth(s.handleClaim))
+	mux.HandleFunc("POST /v1/queue/resolve", s.auth(s.handleResolve))
 	log.Printf("howUdeyChat admin on %s (homeserver %s)", cfg.Listen, cfg.Homeserver)
 	log.Fatal(http.ListenAndServe(cfg.Listen, mux))
 }
@@ -126,7 +148,7 @@ func (s *Service) handleProvision(w http.ResponseWriter, r *http.Request) {
 
 	s.mu.Lock()
 	acct := &Account{
-		Username: username, PatientID: req.PatientID, Phone: normPhone(req.Phone),
+		Username: username, Kind: "patient", PatientID: req.PatientID, Phone: normPhone(req.Phone),
 		DisplayName: req.DisplayName, CodeHash: hashCode(code), CreatedAt: time.Now().Unix(),
 	}
 	s.accounts[username] = acct
@@ -240,6 +262,231 @@ func (s *Service) handleRevoke(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"status": "revoked"})
 }
 
+// --- staff provisioning --------------------------------------------------------
+
+var staffRoles = map[string]bool{"doctor": true, "nurse": true, "chw": true, "admin": true}
+
+// POST /v1/staff/provision {licence, role, phone, display_name}
+// Gated against the staff registry (MDCN/NMCN/...): the licence must exist,
+// the role must match the registered cadre, and the phone must match.
+func (s *Service) handleStaffProvision(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Licence     string `json:"licence"`
+		Role        string `json:"role"`
+		Phone       string `json:"phone"`
+		DisplayName string `json:"display_name"`
+	}
+	if json.NewDecoder(r.Body).Decode(&req) != nil || req.Licence == "" || req.Phone == "" {
+		http.Error(w, "licence and phone required", 400)
+		return
+	}
+	if !staffRoles[req.Role] {
+		http.Error(w, "unknown role", 400)
+		return
+	}
+	if !s.staffExists(req.Licence, req.Role, req.Phone) {
+		http.Error(w, "unknown staff record", 404)
+		return
+	}
+	username := usernameFor(req.Licence)
+	code := setupCode()
+
+	s.mu.Lock()
+	if _, dup := s.accounts[username]; dup {
+		s.mu.Unlock()
+		http.Error(w, "already provisioned", 409)
+		return
+	}
+	acct := &Account{
+		Username: username, Kind: "staff", Licence: req.Licence, Role: req.Role,
+		Phone: normPhone(req.Phone), DisplayName: req.DisplayName,
+		CodeHash: hashCode(code), CreatedAt: time.Now().Unix(),
+	}
+	s.accounts[username] = acct
+	s.mu.Unlock()
+	s.persist(acct)
+
+	if err := s.createMatrixUser(username, code); err != nil {
+		s.spool(username, code)
+	}
+	s.audit("staff-provision", username, req.Role+"/"+req.Licence)
+	writeJSON(w, 201, map[string]any{"username": username, "role": req.Role, "setup_code": code})
+}
+
+// POST /v1/staff/activate {username, setup_code, licence, phone, pin}
+// Same fail-closed doctrine as patient activation: every failure is 404.
+func (s *Service) handleStaffActivate(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Username  string `json:"username"`
+		SetupCode string `json:"setup_code"`
+		Licence   string `json:"licence"`
+		Phone     string `json:"phone"`
+		PIN       string `json:"pin"`
+	}
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	s.mu.Lock()
+	acct, found := s.accounts[req.Username]
+	s.mu.Unlock()
+	fail := func() { http.Error(w, "cannot activate", 404) }
+
+	if !found || acct.Kind != "staff" || acct.Revoked || acct.Activated {
+		fail()
+		return
+	}
+	if subtleCompare(hashCode(req.SetupCode), acct.CodeHash) != 1 {
+		fail()
+		return
+	}
+	if acct.Licence != req.Licence || acct.Phone != normPhone(req.Phone) {
+		fail()
+		return
+	}
+	if len(req.PIN) < 4 {
+		http.Error(w, "pin too short", 400)
+		return
+	}
+	if err := s.setMatrixPassword(req.Username, req.PIN); err != nil {
+		http.Error(w, "homeserver unavailable, retry shortly", 503)
+		return
+	}
+	s.mu.Lock()
+	acct.Activated = true
+	acct.ActivatedAt = time.Now().Unix()
+	acct.CodeHash = ""
+	s.mu.Unlock()
+	s.persist(acct)
+	s.audit("staff-activate", req.Username, acct.Role)
+	writeJSON(w, 200, map[string]any{"status": "active", "user_id": "@" + req.Username + ":" + s.cfg.UsernameRealm, "role": acct.Role})
+}
+
+// --- escalation queue ----------------------------------------------------------
+
+// POST /v1/escalate {username, room_id, reason} — patient app or gateway bot
+// asks for a human. The patient's account must exist (no phantom queue entries).
+func (s *Service) handleEscalate(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Username string `json:"username"`
+		RoomID   string `json:"room_id"`
+		Reason   string `json:"reason"`
+	}
+	if json.NewDecoder(r.Body).Decode(&req) != nil || req.Username == "" || req.RoomID == "" {
+		http.Error(w, "username and room_id required", 400)
+		return
+	}
+	s.mu.Lock()
+	acct, found := s.accounts[req.Username]
+	if !found || acct.Revoked {
+		s.mu.Unlock()
+		http.Error(w, "unknown account", 404)
+		return
+	}
+	// one open escalation per room — repeat requests are idempotent
+	for _, e := range s.queue {
+		if e.RoomID == req.RoomID && e.Status != "resolved" {
+			s.mu.Unlock()
+			writeJSON(w, 200, map[string]any{"id": e.ID, "status": e.Status})
+			return
+		}
+	}
+	e := &Escalation{
+		ID: fmt.Sprintf("esc-%d", time.Now().UnixNano()), Username: req.Username,
+		RoomID: req.RoomID, Reason: req.Reason, Status: "waiting", CreatedAt: time.Now().Unix(),
+	}
+	s.queue = append(s.queue, e)
+	s.mu.Unlock()
+	s.persistQueue()
+	s.audit("escalate", req.Username, req.Reason)
+	writeJSON(w, 201, map[string]any{"id": e.ID, "status": "waiting"})
+}
+
+// GET /v1/queue — staff console polls this.
+func (s *Service) handleQueue(w http.ResponseWriter, _ *http.Request) {
+	s.mu.Lock()
+	out := make([]*Escalation, 0, len(s.queue))
+	for _, e := range s.queue {
+		if e.Status != "resolved" {
+			out = append(out, e)
+		}
+	}
+	s.mu.Unlock()
+	writeJSON(w, 200, map[string]any{"queue": out, "count": len(out)})
+}
+
+// POST /v1/queue/claim {id, staff_username} — first claim wins.
+func (s *Service) handleClaim(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID       string `json:"id"`
+		Staff    string `json:"staff_username"`
+	}
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	staff, ok := s.accounts[req.Staff]
+	if !ok || staff.Kind != "staff" || !staff.Activated || staff.Revoked {
+		http.Error(w, "unknown staff account", 404)
+		return
+	}
+	for _, e := range s.queue {
+		if e.ID == req.ID {
+			if e.Status == "resolved" {
+				http.Error(w, "already resolved", 409)
+				return
+			}
+			if e.Status == "claimed" && e.ClaimedBy != req.Staff {
+				writeJSON(w, 409, map[string]any{"status": "claimed", "claimed_by": e.ClaimedBy})
+				return
+			}
+			e.Status, e.ClaimedBy, e.ClaimedAt = "claimed", req.Staff, time.Now().Unix()
+			s.persistQueue()
+			s.audit("claim", req.Staff, e.ID+"/"+e.Username)
+			writeJSON(w, 200, map[string]any{"id": e.ID, "status": "claimed", "room_id": e.RoomID})
+			return
+		}
+	}
+	http.Error(w, "unknown escalation", 404)
+}
+
+// POST /v1/queue/resolve {id, staff_username} — only the claimer resolves.
+func (s *Service) handleResolve(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID    string `json:"id"`
+		Staff string `json:"staff_username"`
+	}
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.queue {
+		if e.ID == req.ID {
+			if e.Status == "resolved" {
+				writeJSON(w, 200, map[string]string{"status": "resolved"})
+				return
+			}
+			if e.ClaimedBy != "" && e.ClaimedBy != req.Staff {
+				http.Error(w, "claimed by another staff member", 409)
+				return
+			}
+			e.Status, e.ClaimedBy = "resolved", req.Staff
+			if e.ClaimedAt == 0 {
+				e.ClaimedAt = time.Now().Unix()
+			}
+			s.persistQueue()
+			s.audit("resolve", req.Staff, e.ID+"/"+e.Username)
+			writeJSON(w, 200, map[string]string{"status": "resolved"})
+			return
+		}
+	}
+	http.Error(w, "unknown escalation", 404)
+}
+
 // --- homeserver (Synapse shared-secret admin registration) -------------------
 
 func (s *Service) createMatrixUser(username, password string) error {
@@ -333,6 +580,24 @@ func (s *Service) patientExists(patientID, phone string) bool {
 	return res.StatusCode == 200 && len(out.Results) > 0
 }
 
+// staffExists gates staff provisioning against the professional registry:
+// GET /staff/search?licence=&role=&phone= -> {"results":[...]} (fail closed).
+func (s *Service) staffExists(licence, role, phone string) bool {
+	res, err := s.client.Get(fmt.Sprintf("%s/staff/search?licence=%s&role=%s&phone=%s",
+		s.cfg.RegistryURL, licence, role, normPhone(phone)))
+	if err != nil {
+		return false
+	}
+	defer res.Body.Close()
+	var out struct {
+		Results []any `json:"results"`
+	}
+	if json.NewDecoder(res.Body).Decode(&out) != nil {
+		return false
+	}
+	return res.StatusCode == 200 && len(out.Results) > 0
+}
+
 // --- durability: spool, audit, persistence -------------------------------------
 
 func (s *Service) spool(username, code string) {
@@ -391,8 +656,25 @@ func (s *Service) load() {
 		}
 		var a Account
 		if json.Unmarshal(raw, &a) == nil {
+			if a.Kind == "" {
+				a.Kind = "patient"
+			}
 			s.accounts[a.Username] = &a
 		}
+	}
+	if raw, err := os.ReadFile(filepath.Join(s.cfg.DataDir, "queue.json")); err == nil {
+		var q []*Escalation
+		if json.Unmarshal(raw, &q) == nil {
+			s.queue = q
+		}
+	}
+}
+
+func (s *Service) persistQueue() {
+	raw, _ := json.MarshalIndent(s.queue, "", "  ")
+	tmp := filepath.Join(s.cfg.DataDir, "queue.json.tmp")
+	if os.WriteFile(tmp, raw, 0o600) == nil {
+		_ = os.Rename(tmp, filepath.Join(s.cfg.DataDir, "queue.json"))
 	}
 }
 
