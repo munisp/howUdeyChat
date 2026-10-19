@@ -1,7 +1,7 @@
 // sw.js — offline-first app shell. The whole UI is precached at install, so
 // the app opens with zero network. Matrix API calls are NEVER cached here —
 // freshness and ordering are matrix-lite's job (sync tokens + outbox).
-const VERSION = "huc-v3";
+const VERSION = "huc-v4";
 const SHELL = [
   ".",
   "index.html",

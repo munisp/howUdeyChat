@@ -8,6 +8,19 @@
 export const RETRY_BASE_MS = 1000;
 export const RETRY_MAX_MS = 60000;
 export const SYNC_TIMEOUT_MS = 30000;
+// Battery budget (ADR-0012): the radio is the battery. Foreground long-polls
+// grow toward SYNC_TIMEOUT_MAX_MS while the account is idle (quiet nights
+// cost half the wakeups); background mode drops long-polling entirely —
+// timeout=0 short polls every BACKGROUND_POLL_MS so the OS can put the
+// radio back to sleep between checks.
+export const SYNC_TIMEOUT_MAX_MS = 90000;
+export const BACKGROUND_POLL_MS = 30000;
+// Memory budget: timelines are pruned to TIMELINE_KEEP events per room
+// (at most every PRUNE_INTERVAL_MS); undecryptable ciphertext is parked in
+// a bounded map, not an unbounded leak.
+export const TIMELINE_KEEP = 500;
+export const PRUNE_INTERVAL_MS = 300000;
+export const UNDECRYPTABLE_CAP = 500;
 
 export class MatrixLite {
   // store: an object implementing the Store contract (see store-memory.js /
@@ -28,6 +41,10 @@ export class MatrixLite {
     this.retryMs = RETRY_BASE_MS;
     this._pendingShares = []; // [roomId, keyShare] awaiting a live link
     this._undecryptable = new Map(); // eventId -> [roomId, ev] awaiting keys
+    this._background = false;        // setBackground(true) when app hidden
+    this._idleSyncs = 0;             // consecutive empty syncs (adaptive timeout)
+    this._lastPrune = 0;
+    this.onTelemetry = null;  // (metric, value) => void — battery/memory counters
     this.onEvent = null;      // (roomId, event) => void
     this.onSyncState = null;  // ("offline"|"syncing"|"live", detail) => void
     this.onSent = null;       // (txnId, eventId) => void
@@ -58,20 +75,75 @@ export class MatrixLite {
     while (this.running) {
       try {
         this._syncState("syncing");
-        const q = `?timeout=${SYNC_TIMEOUT_MS}` +
-          (this.since ? `&since=${encodeURIComponent(this.since)}` : "");
-        const data = await this._req("GET", `/_matrix/client/v3/sync${q}`);
+        const data = await this._req("GET", `/_matrix/client/v3/sync${this._syncQuery()}`);
+        const hadEvents = this._hadEvents(data);
         await this._applySync(data);
         this.since = data.next_batch;
         await this.store.setSyncToken(this.since);
         this.retryMs = RETRY_BASE_MS;
+        // Idle-adaptive long-poll: quiet accounts hold each poll longer.
+        this._idleSyncs = hadEvents ? 0 : this._idleSyncs + 1;
         this._syncState("live");
         await this._flushOutbox();
+        await this._maybePrune();
+        if (this._background) {
+          // Short-poll cadence in the background: one wakeup per window.
+          this._telemetry("sync.background_poll", 1);
+          await sleep(BACKGROUND_POLL_MS);
+        }
       } catch (e) {
         this._syncState("offline", e.status || 0);
         await sleep(jitter(this.retryMs));
         this.retryMs = Math.min(this.retryMs * 2, RETRY_MAX_MS);
       }
+    }
+  }
+
+  // Background mode: app hidden / screen off. The sync loop switches from
+  // held-open long-polls to spaced short polls; foreground restores
+  // immediacy. The shell wires visibilitychange (PWA) or the pause/resume
+  // lifecycle (Capacitor) to this.
+  setBackground(on) {
+    const was = this._background;
+    this._background = !!on;
+    if (was && !this._background) this._idleSyncs = 0; // snap back to live
+    this._telemetry("sync.background", this._background ? 1 : 0);
+  }
+
+  _syncQuery() {
+    const timeout = this._background
+      ? 0 // never hold a request open while hidden — radio sleeps
+      : Math.min(SYNC_TIMEOUT_MS + this._idleSyncs * 10000, SYNC_TIMEOUT_MAX_MS);
+    return `?timeout=${timeout}` +
+      (this.since ? `&since=${encodeURIComponent(this.since)}` : "");
+  }
+
+  _hadEvents(data) {
+    const joined = (data && data.rooms && data.rooms.join) || {};
+    for (const room of Object.values(joined)) {
+      if (room.timeline && room.timeline.events && room.timeline.events.length) return true;
+    }
+    return false;
+  }
+
+  // Memory budget: prune each room's timeline to the newest TIMELINE_KEEP
+  // events, at most once per PRUNE_INTERVAL_MS. Events are clinical
+  // correspondence — the server keeps the record; the phone keeps a window.
+  async _maybePrune(force = false) {
+    if (!this.store.pruneEvents) return;
+    const now = Date.now();
+    if (!force && now - this._lastPrune < PRUNE_INTERVAL_MS) return;
+    this._lastPrune = now;
+    const rooms = await this.store.listRooms();
+    for (const roomId of rooms) {
+      const dropped = await this.store.pruneEvents(roomId, TIMELINE_KEEP);
+      if (dropped) this._telemetry("store.pruned_events", dropped);
+    }
+  }
+
+  _telemetry(metric, value) {
+    if (this.onTelemetry) {
+      try { this.onTelemetry(metric, value); } catch { /* never break sync */ }
     }
   }
 
@@ -101,7 +173,15 @@ export class MatrixLite {
             ev = { ...ev, type: "m.room.message", content: plain,
                    decrypted: true, original_type: "m.room.encrypted" };
           } catch {
-            // key may arrive later (to-device lag) — park, never drop
+            // key may arrive later (to-device lag) — park, never drop.
+            // Bounded: past the cap, evict the oldest parked event (the
+            // store still has the ciphertext; keys arriving later re-decrypt
+            // from history, not from this map).
+            if (this._undecryptable.size >= UNDECRYPTABLE_CAP) {
+              const oldest = this._undecryptable.keys().next().value;
+              this._undecryptable.delete(oldest);
+              this._telemetry("e2ee.parked_evicted", 1);
+            }
             this._undecryptable.set(ev.event_id, [roomId, ev]);
             continue;
           }

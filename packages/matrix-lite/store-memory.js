@@ -20,11 +20,33 @@ export class MemoryStore {
   }
   async touchRoom(roomId) { this.rooms.set(roomId, Date.now()); }
   async listRooms() { return [...this.rooms.keys()]; }
+  // Memory budget (ADR-0012): drop all but the newest `keep` events in the
+  // room (origin_server_ts / insertion order). Returns how many dropped.
+  async pruneEvents(roomId, keep) {
+    const mine = [...this.events.entries()]
+      .filter(([, r]) => r.roomId === roomId)
+      .sort((a, b) => (a[1].ev.origin_server_ts || 0) - (b[1].ev.origin_server_ts || 0));
+    const excess = mine.length - keep;
+    for (let i = 0; i < excess; i++) this.events.delete(mine[i][0]);
+    return Math.max(0, excess);
+  }
   async outboxAdd(msg) { this.outbox.set(msg.txnId, msg); }
   async outboxRemove(txnId) { this.outbox.delete(txnId); }
   async outboxAll() { return [...this.outbox.values()]; }
-  async mediaGet(mxc) { return this.media.get(mxc); }
-  async mediaPut(mxc, blob, mime) { this.media.set(mxc, { blob, mime }); }
+  async mediaGet(mxc) {
+    const hit = this.media.get(mxc);
+    if (hit) hit.at = Date.now(); // LRU touch
+    return hit;
+  }
+  async mediaPut(mxc, blob, mime) {
+    this.media.set(mxc, { blob, mime, size: (blob && blob.size) || 0, at: Date.now() });
+  }
+  // Media LRU contract (media.js enforceBudget): list entries with sizes
+  // and last-access, delete by mxc.
+  async mediaList() {
+    return [...this.media.entries()].map(([mxc, v]) => ({ mxc, size: v.size, at: v.at }));
+  }
+  async mediaDelete(mxc) { this.media.delete(mxc); }
   async isEncrypted(roomId) { return this.encrypted.has(roomId); }
   async setEncrypted(roomId, on) { on ? this.encrypted.add(roomId) : this.encrypted.delete(roomId); }
   async e2eeGet(k) { return this.e2ee.get(k); }

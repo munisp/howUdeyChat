@@ -135,6 +135,28 @@ A nurse or doctor engages a patient as a peer on the same homeserver
 sh demo/phase5.sh   # e2e: licence gate → activate → escalate → claim → chat → resolve
 ```
 
+## Phase 6 (shipped): power & memory budgets
+
+The patient device is a budget Android phone on an unreliable grid; battery
+and storage are clinical resources ([ADR-0012](docs/architecture/adr-0012-power-and-memory-budgets.md)):
+
+- **Idle-adaptive sync** — foreground long-polls grow 30s → 90s while the
+  account is quiet; activity snaps back to 30s.
+- **Background short-polls** — app hidden ⇒ `timeout=0` polls every 30s
+  (radio sleeps between checks); real-time background delivery rides the
+  WebPush pusher, not the sync loop.
+- **Timeline pruning** — newest 500 events per room, every 5 min; the
+  server holds the archive, the phone holds the window.
+- **Media LRU cache** — 50MB byte cap, least-recently-used evicted on every
+  insert.
+- **Bounded ciphertext parking** — undecryptable map capped at 500.
+- **Telemetry hooks** — `onTelemetry` counters prove the budget on real
+  devices (opt-in, clinical-detail-free).
+
+```sh
+node --test tests/   # 32 checks incl. the power/memory budget suite
+```
+
 ## Doctrine
 
 - **Compose, don't fork.** Homeserver is off-the-shelf Apache-2.0; our code

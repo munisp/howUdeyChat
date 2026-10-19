@@ -135,6 +135,13 @@ async function startClient(cfg) {
     });
   }
   client.start(); // runs forever with backoff; stop() on logout
+  // Battery budget (ADR-0012): hidden app = short-poll cadence; the homeserver
+  // WebPush pusher (above) still wakes us for real messages, so the patient
+  // loses nothing and the radio sleeps.
+  document.addEventListener("visibilitychange", () => {
+    client.setBackground(document.hidden);
+  });
+  client.setBackground(document.hidden);
   show("rooms");
   await paintRooms();
 }
