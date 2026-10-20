@@ -36,11 +36,22 @@ Speaks English, Naija (Pidgin), Hausa, Yorùbá, Igbo.
 
 ```
 packages/matrix-lite/   clean-room Matrix client core (JS/TS types, no SDK)
+packages/sign/          shared HMAC-SHA256 signing on WebCrypto
+packages/artifacts/     actionable health artifacts (one-tap confirm/reschedule)
+packages/consent-gate/  scoped, expiring, revocable contact grants (fail-closed)
+packages/triage/        on-device multilingual triage with red-flag escalation
+packages/adherence/     medication adherence loops -> lakefeed contract events
+packages/verify/        signed staff badges, HUC1 QR, offline verification
+packages/carecircle/    family proxy rooms, one-level delegation, expiring scopes
+packages/broadcast/     cohort campaigns with quiet hours and honest tallies
+packages/shredder/      per-thread retention TTL, content-free audit, panic wipe
+packages/bulletin/      signed offline clinic notices (hours/outbreak/stock)
 apps/pwa/               the app — service worker, offline shell, i18n, renderers
 apps/console/           staff console — claim escalations, chat/call patients
 apps/android/           Capacitor shell (build notes)
 apps/ios/               Capacitor shell (build notes)
 relay/                  Go store-and-forward relay (clinic hotspot / LGA edge)
+                        + mesh.go: relay-to-relay forwarding with HMAC hop chain
 admin/                  Go provisioning & management service (registration desk)
 core/huc-core/          Rust crypto/util core — SHA-256, HMAC, ct-compare (pure std)
 demo/                   offline-chat: e2e against a simulated Nigerian network
@@ -156,6 +167,18 @@ and storage are clinical resources ([ADR-0012](docs/architecture/adr-0012-power-
 ```sh
 node --test tests/   # 32 checks incl. the power/memory budget suite
 ```
+
+## Phase 7 (shipped): ten patient-channel innovations (ADR-0013)
+
+Actionable appointment cards (signed, idempotent, one-tap confirm) ·
+consent-gated clinician contact (scoped, expiring, fail-closed) · on-device
+multilingual triage with red-flag escalation · medication adherence loops
+feeding OpenHealth chronic registries in the lakefeed contract · signed
+staff badges with HUC1 QR (offline-verifiable, anti-fraud) · care circles
+with one-level proxy grants · cohort broadcast campaigns with quiet hours ·
+retention shredder + panic wipe with content-free audit · signed offline
+health bulletins · relay mesh — a stranded clinic spool hops to a peer
+relay over an HMAC-chained handoff.
 
 ## Doctrine
 
