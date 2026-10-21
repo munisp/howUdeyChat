@@ -43,7 +43,10 @@ packages/triage/        on-device multilingual triage with red-flag escalation
 packages/adherence/     medication adherence loops -> lakefeed contract events
 packages/verify/        signed staff badges, HUC1 QR, offline verification
 packages/carecircle/    family proxy rooms, one-level delegation, expiring scopes,
-                        magic-link onboarding (magiclink.js)
+                        magic-link onboarding (magiclink.js), care-load fairness
+                        ledger (ledger.js, signed entries + minimal settlement)
+packages/kiosk/           one-screen patient view: meds, appointment, I'm-okay
+packages/monitor/         passive monitoring: missing-signal alerts to the circle
 packages/broadcast/     cohort campaigns with quiet hours and honest tallies
 packages/shredder/      per-thread retention TTL, content-free audit, panic wipe
 packages/bulletin/      signed offline clinic notices (hours/outbreak/stock)
@@ -177,7 +180,12 @@ multilingual triage with red-flag escalation · medication adherence loops
 feeding OpenHealth chronic registries in the lakefeed contract · signed
 staff badges with HUC1 QR (offline-verifiable, anti-fraud) · care circles
 with one-level proxy grants and magic-link invites (signed, scoped,
-expiring, one-time — a member joins without creating an account) ·
+expiring, one-time — a member joins without creating an account) · kiosk
+mode — one screen: today's meds, next appointment, one-tap I'm-okay ·
+care-load ledger — signed visit/expense/task entries, fairness report with
+minimal settlement (the cared-for person is the beneficiary, never a debtor) ·
+passive monitoring — a missed morning check-in or 4h-overdue med alerts the
+receive_results circle; no signal history is itself an alert, never quiet ·
 cohort broadcast campaigns with quiet hours ·
 retention shredder + panic wipe with content-free audit · signed offline
 health bulletins · relay mesh — a stranded clinic spool hops to a peer

@@ -33,6 +33,18 @@ export class CareCircle {
     if (g) g.revoked = true;
     return !!g;
   }
+  // scope-agnostic membership check: is this actor a current, untampered
+  // member at all? (the care-load ledger needs contribution rights, not
+  // a particular read/reply scope)
+  async hasAccess(memberId, now = Date.now()) {
+    if (memberId === this.owner) return { allow: true };
+    const g = this.grants.get(memberId);
+    if (!g || g.revoked) return { allow: false, reason: "revoked-or-missing" };
+    if (g.exp <= now) return { allow: false, reason: "expired" };
+    const { sig, revoked, ...body } = g;
+    const ok = await hmacVerify(body, sig, this.key);
+    return ok ? { allow: true } : { allow: false, reason: "tampered" };
+  }
   async check(memberId, scope, now = Date.now()) {
     if (memberId === this.owner) return { allow: true }; // owner is always in
     const g = this.grants.get(memberId);
