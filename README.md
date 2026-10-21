@@ -46,7 +46,9 @@ packages/carecircle/    family proxy rooms, one-level delegation, expiring scope
                         magic-link onboarding (magiclink.js), care-load fairness
                         ledger (ledger.js, signed entries + minimal settlement)
 packages/kiosk/           one-screen patient view: meds, appointment, I'm-okay
-packages/monitor/         passive monitoring: missing-signal alerts to the circle
+packages/monitor/         passive monitoring: missing-signal alerts to the circle,
+                        Home Assistant bridge (ha_adapter.js — mosquitto_sub owns
+                        the MQTT wire, we own the translation, fixtures pinned)
 packages/broadcast/     cohort campaigns with quiet hours and honest tallies
 packages/shredder/      per-thread retention TTL, content-free audit, panic wipe
 packages/bulletin/      signed offline clinic notices (hours/outbreak/stock)
