@@ -40,6 +40,17 @@ export function translate(topic, payload, patient, now) {
     if (!Number.isFinite(pct)) return null;
     return pct < 20 ? { ...base, type: "device-alert", battery_pct: pct } : null;
   }
+  // composite-rule signal sources (monitor/rules.js):
+  if ((domain === "switch" || domain === "plug") && /stove|cooker/.test(entity)) {
+    if (p !== "on" && p !== "off" && p !== "ON" && p !== "OFF") return null;
+    return { ...base, type: "appliance", active: p.toLowerCase() === "on" };
+  }
+  if (domain === "binary_sensor" && /cabinet/.test(entity)) {
+    if (p !== "ON" && p !== "OFF") return null;
+    return p === "ON" ? { ...base, type: "cabinet_open" } : null;
+  }
+  if (domain === "sensor" && /uptime|heartbeat/.test(entity))
+    return { ...base, type: "heartbeat" }; // hub liveness — any state counts
   return null;
 }
 

@@ -46,9 +46,10 @@ packages/carecircle/    family proxy rooms, one-level delegation, expiring scope
                         magic-link onboarding (magiclink.js), care-load fairness
                         ledger (ledger.js, signed entries + minimal settlement)
 packages/kiosk/           one-screen patient view: meds, appointment, I'm-okay
-packages/monitor/         passive monitoring: missing-signal alerts to the circle,
-                        Home Assistant bridge (ha_adapter.js — mosquitto_sub owns
-                        the MQTT wire, we own the translation, fixtures pinned)
+packages/monitor/         passive monitoring: missing-signal alerts, escalation
+                        ladder (signed acks, climbs to the clinic), composite HA
+                        rules (rules.js) · Home Assistant bridge (ha_adapter.js —
+                        mosquitto_sub owns the MQTT wire, we own the translation)
 packages/broadcast/     cohort campaigns with quiet hours and honest tallies
 packages/shredder/      per-thread retention TTL, content-free audit, panic wipe
 packages/bulletin/      signed offline clinic notices (hours/outbreak/stock)
@@ -186,8 +187,17 @@ expiring, one-time — a member joins without creating an account) · kiosk
 mode — one screen: today's meds, next appointment, one-tap I'm-okay ·
 care-load ledger — signed visit/expense/task entries, fairness report with
 minimal settlement (the cared-for person is the beneficiary, never a debtor) ·
+refill relay — low-stock plans become claimable signed tasks, collection only
+by the claimant · visit roster with coverage-gap detection · voice-note digests
+(en + pcm scripts for the TTS layer, alerts read first, quiet days honest) ·
+bereavement & handover — owner-only close, final settlement, all grants
+revoked, signed content-minimal receipt ·
 passive monitoring — a missed morning check-in or 4h-overdue med alerts the
 receive_results circle; no signal history is itself an alert, never quiet ·
+escalation ladder — one member at a time, signed acks, silence climbs to the
+clinic · HA composite rules — night wandering, unattended stove, possible-fall
+(family-laddered, precision stated), hub-offline gating (hub silence is never
+patient silence), med-cabinet cross-check (remind in-home first) ·
 cohort broadcast campaigns with quiet hours ·
 retention shredder + panic wipe with content-free audit · signed offline
 health bulletins · relay mesh — a stranded clinic spool hops to a peer
