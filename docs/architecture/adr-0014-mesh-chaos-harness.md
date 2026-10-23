@@ -27,13 +27,18 @@ prove nothing and now says so).
 
 ## Honest limits
 
-- This is **in-process** chaos: no real sockets, no TCP behaviour, no
-  clock skew, no partial writes. The TLS wire bench (openhealthOS
-  ADR-0067) covers the transport-cost axis; a multi-node WAN rig remains
-  deferred to connected infrastructure.
+- ~~This is **in-process** chaos~~ **Update (same day)**: `chaos_wire_test.go`
+  now runs the same assertions over **real TLS sockets** (httptest servers)
+  with a RoundTripper injecting 10–60ms latency and 25% dial failures:
+  zero loss over 56 round trips with 16 tower failures, slow-peer drains
+  without duplication, duplicate wire deliveries refused (400), tampered
+  bytes rejected at the TLS endpoint. Timings recorded, never asserted.
 - Latency is not injected (the transport is synchronous); the drops test
   exercises the retry path instead, which is where latency pressure
   actually lands in this design.
+- What genuinely remains for connected infrastructure: multi-host clock
+  skew, true mid-stream packet loss, and real PKI (tests use self-signed
+  loopback certs). Those need network namespaces or real machines.
 
 ## Consequences
 
