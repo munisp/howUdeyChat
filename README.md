@@ -54,6 +54,9 @@ packages/broadcast/     cohort campaigns with quiet hours and honest tallies
 packages/shredder/      per-thread retention TTL, content-free audit, panic wipe
 packages/bulletin/      signed offline clinic notices (hours/outbreak/stock)
 packages/domainpack/    generalized seam contract: worklists in, field reports out, any sector
+packages/identity/      phone-number identity, OTP verification, private hashed discovery
+packages/wagateway/     WhatsApp Business Cloud API gateway (honest spike without creds)
+packages/voicenote/     first-class voice notes: duration cap, language tag, honest transcripts
 apps/pwa/               the app — service worker, offline shell, i18n, renderers
 apps/console/           staff console — claim escalations, chat/call patients
 apps/android/           Capacitor shell (build notes)
@@ -218,6 +221,19 @@ agriculture extension (field reports, market prices, officer worklists,
 advisories) and cooperative (dues worklists, contribution lines for
 reconciliation, meeting notices, attendance) — 8 contract tests prove the
 pattern holds outside health. See ADR-0015.
+
+## Phase 9 (shipped): universal client (ADR-0016)
+
+relay federation — bilateral corridors between sovereign deployments,
+per-pair secrets, origin-path loop prevention, quarantine on bad MAC /
+unknown peer / sender mismatch (7 Go tests) · phone identity with private
+discovery — E.164 + OTP-verified registration, HMAC-hashed opt-in
+discovery that answers but can never be listed, rate-limited against
+enumeration (7 tests) · WhatsApp Business gateway — meet users where they
+are: template sends, verified webhooks, sent ≠ delivered ≠ read kept
+honest, unconfigured refuses loudly (7 tests) · voice notes — first-class
+m.audio with duration cap, required language (en/pcm/ha/yo/ig), honest
+transcript states, hold-to-record UX spec (6 tests) ·
 
 ## Doctrine
 
