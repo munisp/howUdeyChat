@@ -53,6 +53,7 @@ packages/monitor/         passive monitoring: missing-signal alerts, escalation
 packages/broadcast/     cohort campaigns with quiet hours and honest tallies
 packages/shredder/      per-thread retention TTL, content-free audit, panic wipe
 packages/bulletin/      signed offline clinic notices (hours/outbreak/stock)
+packages/domainpack/    generalized seam contract: worklists in, field reports out, any sector
 apps/pwa/               the app — service worker, offline shell, i18n, renderers
 apps/console/           staff console — claim escalations, chat/call patients
 apps/android/           Capacitor shell (build notes)
@@ -202,6 +203,21 @@ cohort broadcast campaigns with quiet hours ·
 retention shredder + panic wipe with content-free audit · signed offline
 health bulletins · relay mesh — a stranded clinic spool hops to a peer
 relay over an HMAC-chained handoff.
+
+## Phase 8 (shipped): domain packs — one client, any sector
+
+`packages/domainpack/` generalizes the seam pattern the health build proved
+(structured NDJSON lines: worklists in, field reports out, fail-closed
+validation) into a loadable pack contract — so the same client serves
+agriculture, cooperatives, education, logistics without forking the app.
+A pack is data (domain, version, inbound/outbound kinds with required
+fields); the engine enforces the contract: unversioned seams refuse,
+version mismatches refuse, missing fields reject loudly with counts,
+absence is never defaulted into a value. Ships with two seed packs —
+agriculture extension (field reports, market prices, officer worklists,
+advisories) and cooperative (dues worklists, contribution lines for
+reconciliation, meeting notices, attendance) — 8 contract tests prove the
+pattern holds outside health. See ADR-0015.
 
 ## Doctrine
 
