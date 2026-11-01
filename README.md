@@ -57,6 +57,7 @@ packages/domainpack/    generalized seam contract: worklists in, field reports o
 packages/identity/      phone-number identity, OTP verification, private hashed discovery
 packages/wagateway/     WhatsApp Business Cloud API gateway (honest spike without creds)
 packages/voicenote/     first-class voice notes: duration cap, language tag, honest transcripts
+packages/otpchannel/    pluggable OTP delivery (SMS/USSD/tablet), honest spike without a provider
 apps/pwa/               the app — service worker, offline shell, i18n, renderers
 apps/console/           staff console — claim escalations, chat/call patients
 apps/android/           Capacitor shell (build notes)
@@ -222,6 +223,7 @@ advisories) and cooperative (dues worklists, contribution lines for
 reconciliation, meeting notices, attendance) — 8 contract tests prove the
 pattern holds outside health. See ADR-0015.
 
+corridor key rotation — dual-secret 7-day grace so a downed peer is a phone call not an outage, old-key intakes counted and surfaced, runbook at docs/runbooks/corridor-key-rotation.md (5 Go tests) · OTP delivery channels — pluggable SMS/USSD/tablet providers, refuses to pretend without one, codes 5-minute TTL and one-time, audit log stores hashed phone only (8 tests) ·
 ## Phase 9 (shipped): universal client (ADR-0016)
 
 relay federation — bilateral corridors between sovereign deployments,
