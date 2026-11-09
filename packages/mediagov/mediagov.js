@@ -69,29 +69,29 @@ export class DataBudget {
     this.queued = [];               // deferred sends, stated
   }
 
-  _spent() { return this.days.get(this.today()) || 0; }
+  spentKbToday() { return this.days.get(this.today()) || 0; }
 
-  _spend(kb) {
-    this.days.set(this.today(), this._spent() + kb);
+  recordSpend(kb) {
+    this.days.set(this.today(), this.spentKbToday() + kb);
   }
 
   /* May this media go over the mobile data right now? */
   admit(kind, kb, { onWifi = false } = {}) {
     if (!(kb >= 0)) throw new Error("size must be known — unknown size is not admitted");
     if (onWifi) return { admitted: true, via: "wifi", note: "Wi-Fi: budget untouched" };
-    const remaining = this.dailyKb - this._spend();
+    const remaining = this.dailyKb - this.spentKbToday();
     if (kb <= remaining) {
-      this._spend(kb);
-      return { admitted: true, via: "mobile", remainingKb: this.dailyKb - this._spend() };
+      this.recordSpend(kb);
+      return { admitted: true, via: "mobile", remainingKb: this.dailyKb - this.spentKbToday() };
     }
     this.queued.push({ kind, kb, day: this.today() });
     return { admitted: false, via: "queued-for-wifi",
-             note: `budget spent (${this._spend()}/${this.dailyKb} KB) — ` +
+             note: `budget spent (${this.spentKbToday()}/${this.dailyKb} KB) — ` +
                    "queued for Wi-Fi, stated, never silently shrunk" };
   }
 
   status() {
-    return { day: this.today(), spentKb: this._spent(),
+    return { day: this.today(), spentKb: this.spentKbToday(),
              dailyKb: this.dailyKb, queued: this.queued.length };
   }
 }
