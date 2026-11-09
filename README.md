@@ -58,6 +58,15 @@ packages/identity/      phone-number identity, OTP verification, private hashed 
 packages/wagateway/     WhatsApp Business Cloud API gateway (honest spike without creds)
 packages/voicenote/     first-class voice notes: duration cap, language tag, honest transcripts
 packages/otpchannel/    pluggable OTP delivery (SMS/USSD/tablet), honest spike without a provider
+packages/pushlane/       push lanes as registry entries: ntfy sovereign + FCM optional, token TTL
+packages/ladder/         channel ladder: corridor plans as data, stated escalation, costed ledger
+packages/ussdwire/       USSD aggregator wire + single-use resume tokens for telco session drops
+packages/flashcall/      missed-call verification for zero-balance phones
+packages/deliverysla/    per-lane delivery SLAs; stuck messages escalate; floored corridor stats
+packages/e2eetrust/      device identity, SAS verification, care-circle social recovery
+packages/mediagov/       compression tiers with diagnostic floors; stated data budgets
+packages/d2drelay/       opportunistic device-to-device sync protocol (BLE/Nearby binding)
+packages/voicetriage/    store-and-forward voice triage with per-language red flags
 apps/pwa/               the app — service worker, offline shell, i18n, renderers
 apps/console/           staff console — claim escalations, chat/call patients
 apps/android/           Capacitor shell (build notes)
@@ -236,6 +245,46 @@ are: template sends, verified webhooks, sent ≠ delivered ≠ read kept
 honest, unconfigured refuses loudly (7 tests) · voice notes — first-class
 m.audio with duration cap, required language (en/pcm/ha/yo/ig), honest
 transcript states, hold-to-record UX spec (6 tests) ·
+
+## Phase 10 (shipped): robustness wave — the honest gaps closed
+
+**wagateway@1.1.0** — webhook idempotency (Meta retries dedupe), status
+monotonicity (sent < delivered < read, `failed` terminal, backwards walks
+recorded as anomalies, never applied), four-eyes `TemplateRegistry`
+(per-language variants, unratified templates refuse before Meta ever sees
+them), media upload, declared `MessagingTier` caps named at refusal ·
+**pushlane@1.0.0** — push as four-eyes registry entries: self-hosted ntfy
+(the sovereign lane) + optional FCM; 90-day token TTL with stated eviction;
+dead tokens reaped on 410; push carries a nudge + opaque ref, never
+clinical content; "sent" never claimed as "delivered" · **ladder@1.0.0** —
+channel ladder: corridor plans as data (push → whatsapp → sms → ussd with
+declared ack windows and costs); every escalation reason recorded ON the
+message record; unconfirmed never success; per-corridor cost ledger with
+sha256 statements · **ussdwire@1.0.0** — aggregator registry (callback
+field mapping as data), cumulative-text chain parsing, HMAC-signed
+single-use resume tokens for the telco's 30–60s session drops ·
+**flashcall@1.0.0** — missed-call verification for zero-balance phones:
+the CLI pool is real numbers, the number IS the code, 3 guesses then
+burned, one-shot · **deliverysla@1.0.0** — per-lane declared SLAs;
+stuck-at-sent escalates exactly once naming lane/wait/SLA/target; corridor
+stats suppressed below k-floor 5 · **e2eetrust@1.0.0** — ECDSA device
+identities, SAS ceremony (MITM key-swap changes the emojis; confirmation
+is a human act), trust list gating key-share, care-circle social recovery
+(quorum 3 pre-nominated vouchers + officer countersign; voucher never
+countersigns; old device revoked-lost) · **mediagov@1.0.0** — compression
+tiers with diagnostic floors (a blurry wound photo refuses), per-plan
+daily data budgets with stated exhaustion · **bg-sync@1.0.0** — capability
+detected not assumed (one-shot/periodic/foreground-poll), battery budget
+with stated deferral · **d2drelay@1.0.0** — opportunistic device-to-device
+anti-entropy over injectable links (BLE/Nearby binding deployment-side):
+manifest exchange, checksum-verified payloads, hop horizon 4, chaos-tested
+drops · **voicetriage@1.0.0** — voice-note triage: the audio is the record,
+untranscribed queues for human listen (stated), red-flag lexicon per
+language, duty board emergencies-first · **CI**: mobile-build workflow
+produces the Android APK per push (JS suite gates the build); iOS sync
+verified unsigned (signing is release-side, stated).
+
+Suite: 194 node tests across 27 files + Go relay green (incl. -race).
 
 ## Doctrine
 

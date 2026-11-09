@@ -1,0 +1,67 @@
+# mobile-build.yml — CI-built Android APK/AAB for howUdeyChat.
+#
+# The native shell is the PWA inside Capacitor (see apps/android/README.md);
+# this workflow makes that REAL: every push to main builds the PWA,
+# generates the Capacitor Android project, and produces an APK artifact.
+# The sandbox recipe in apps/android/README.md is what this runs.
+#
+# iOS archives require an Apple signing identity the repo does not carry;
+# the iOS job verifies the web bundle builds and Capacitor syncs cleanly —
+# signing happens on the release machine, stated not faked.
+
+name: mobile-build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          version: 17
+      - uses: android-actions/setup-android@v3
+      - name: Test the JS suite first — a broken app does not ship
+        run: |
+          for f in tests/*.test.mjs; do node "$f" || exit 1; done
+      - name: Build the PWA bundle
+        run: sh apps/pwa/build.sh
+      - name: Install Capacitor and add Android
+        run: |
+          npm ci
+          npx cap add android
+          npx cap sync android
+      - name: Assemble debug APK
+        run: cd android && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: howudeychat-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+  ios-sync-check:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Test the JS suite first
+        run: |
+          for f in tests/*.test.mjs; do node "$f" || exit 1; done
+      - name: Build the PWA bundle
+        run: sh apps/pwa/build.sh
+      - name: Capacitor iOS sync (unsigned — signing is release-side)
+        run: |
+          npm ci
+          npx cap add ios
+          npx cap sync ios

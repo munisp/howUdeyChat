@@ -1,0 +1,17 @@
+{
+  "name": "howudeychat",
+  "version": "1.1.0",
+  "private": true,
+  "description": "The sovereign patient channel — offline-first healthcare messaging a ministry owns end-to-end.",
+  "type": "module",
+  "scripts": {
+    "test": "for f in tests/*.test.mjs; do node \"$f\" || exit 1; done",
+    "build:pwa": "sh apps/pwa/build.sh"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/ios": "^6.1.2"
+  }
+}
